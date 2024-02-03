@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession, DataFrame
-from ..constants import NORMAL_FACES_IMAGES_PATH
+from src.constants import NORMAL_FACES_IMAGES_PATH
 
 spark = SparkSession.builder.getOrCreate()
 
