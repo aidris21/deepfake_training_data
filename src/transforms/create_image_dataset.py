@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession, DataFrame, functions as F, types as T
-from enum import Enum
+from pyspark.ml.image import ImageSchema
 
 # Run from the src/ folder
 NORMAL_FACES_IMAGES_PATH = "../data/normal_faces/lfw-deepfunneled/lfw-deepfunneled/"
@@ -20,7 +20,8 @@ IMAGE_COLUMNS = [
     "image.data",
 ]
 
-spark = SparkSession.builder.getOrCreate()
+spark = SparkSession.builder.master('local[*]').config("spark.driver.memory", "5g").getOrCreate()
+
 
 
 def get_fake_faces_df() -> DataFrame:
@@ -30,13 +31,15 @@ def get_fake_faces_df() -> DataFrame:
         .option("recursiveFileLookup", "true")
         .load(FAKE_FACES_IMAGES_PATH)
     )
+    
+    print(image_df.select("image.height", "image.width").head(5))
 
     return image_df.select(
         *IMAGE_COLUMNS,
         F.lit(True).alias("is_deepfake"),
         F.lit(1).alias("image_count_for_person"),
         F.lit(None).cast(T.StringType()).alias("person_name"),
-    ).withColumnRenamed("data", "image_data")
+    ).withColumnRenamed("data", "image_data").drop("origin")
 
 
 def get_normal_faces_df() -> DataFrame:
@@ -67,7 +70,7 @@ def get_normal_faces_df() -> DataFrame:
     )
 
     # For our current purposes, limit to 100 rows
-    return names_df.withColumn("__random", F.rand(seed=43)).orderBy("__random").limit(DF_SIZE).drop("__random")
+    return names_df.withColumn("__random", F.rand(seed=43)).orderBy("__random").limit(DF_SIZE).drop("__random", "origin")
 
 
 def main():
@@ -78,9 +81,9 @@ def main():
         "image_id", F.monotonically_increasing_id()
     )
 
-    print("Writing dataframe...")
-    df.write.parquet(OUTPUT_DATASET_PATH, mode="overwrite")
-    print("Done!")
+    # print("Writing dataframe...")
+    # df.write.parquet(OUTPUT_DATASET_PATH, mode="overwrite")
+    # print("Done!")
 
 
 if __name__ == "__main__":
