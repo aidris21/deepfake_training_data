@@ -8,7 +8,7 @@ FAKE_FACES_IMAGES_PATH = "../data/fake_faces"
 
 NORMAL_NAMES_PATH = "../data/normal_faces/lfw_allnames.csv"
 
-OUTPUT_DATASET_PATH = "../data/normal_faces/datasets/normal_faces"
+OUTPUT_DATASET_PATH = "../data/testing_dataset/"
 
 DF_SIZE = 100
 
@@ -49,7 +49,7 @@ def get_normal_faces_df() -> DataFrame:
     names_df: DataFrame = (
         spark.read.format("csv").option("header", True).load(NORMAL_NAMES_PATH)
     )
-    df = (
+    names_df = (
         image_df.select(
             *IMAGE_COLUMNS,
             F.lit(False).alias("is_deepfake"),
@@ -67,7 +67,7 @@ def get_normal_faces_df() -> DataFrame:
     )
 
     # For our current purposes, limit to 100 rows
-    return df.withColumn("__random", F.rand(seed=43)).orderBy("__random").limit(DF_SIZE)
+    return names_df.withColumn("__random", F.rand(seed=43)).orderBy("__random").limit(DF_SIZE).drop("__random")
 
 
 def main():
