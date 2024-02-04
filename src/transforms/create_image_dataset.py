@@ -1,5 +1,4 @@
-from pyspark.sql import SparkSession, DataFrame, functions as F, types as T
-from pyspark.ml.image import ImageSchema
+from pyspark.sql import SparkSession, DataFrame, functions as F, types as T, Window
 
 # Run from the src/ folder
 NORMAL_FACES_IMAGES_PATH = "../data/normal_faces/lfw-deepfunneled/lfw-deepfunneled/"
@@ -31,8 +30,6 @@ def get_fake_faces_df() -> DataFrame:
         .option("recursiveFileLookup", "true")
         .load(FAKE_FACES_IMAGES_PATH)
     )
-    
-    print(image_df.select("image.height", "image.width").head(5))
 
     return image_df.select(
         *IMAGE_COLUMNS,
@@ -52,25 +49,27 @@ def get_normal_faces_df() -> DataFrame:
     names_df: DataFrame = (
         spark.read.format("csv").option("header", True).load(NORMAL_NAMES_PATH)
     )
-    names_df = (
+
+    w = Window.partitionBy("person_name")
+    df = (
         image_df.select(
             *IMAGE_COLUMNS,
             F.lit(False).alias("is_deepfake"),
         )
         .withColumnRenamed("data", "image_data")
         .withColumn("person_name", F.element_at(F.split("origin", "/"), -2))
-        .join(
-            names_df.select(
-                F.col("name").alias("person_name"),
-                F.col("images").alias("image_count_for_person"),
-            ),
-            on="person_name",
-            how="left",
+        .withColumn("__random", F.rand(seed=43))
+        .orderBy("__random")
+        # For our current purposes, limit to 100 rows
+        .limit(DF_SIZE)
+        .drop("__random", "origin")
+        .withColumn(
+            "image_count_for_person",
+            F.count("person_name").over(w)
         )
     )
 
-    # For our current purposes, limit to 100 rows
-    return names_df.withColumn("__random", F.rand(seed=43)).orderBy("__random").limit(DF_SIZE).drop("__random", "origin")
+    return df
 
 
 def main():
@@ -81,9 +80,9 @@ def main():
         "image_id", F.monotonically_increasing_id()
     )
 
-    # print("Writing dataframe...")
-    # df.write.parquet(OUTPUT_DATASET_PATH, mode="overwrite")
-    # print("Done!")
+    print("Writing dataframe...")
+    df.write.parquet(OUTPUT_DATASET_PATH, mode="overwrite")
+    print("Done!")
 
 
 if __name__ == "__main__":
